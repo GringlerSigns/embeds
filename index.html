@@ -26,14 +26,14 @@
     <ul>
         <li>🟥 Red: <b>Not empty</b> or not loaded (if at HQ)</li>
         <li>🟩 Green: <b>Empty</b> Trailer</li>
-        <li>🟪 Purple: Trailer out 350 days or longer</li>
+        <li>🟪 Purple: Trailer out 100 days or longer</li>
     </ul>
     
 <p><b>Filter by:</b></p>
-<!--<label for="trailerFilter"><b>Trailer #</b></label>
+<label for="trailerFilter"><b>Trailer #</b></label>
 <input type="text" id="trailerFilter" oninput="filterMarkers()" />
 <label for="jobFilter"><b>Job #</b></label>
-<input type="text" id="jobFilter" oninput="filterMarkers()" />-->
+<input type="text" id="jobFilter" oninput="filterMarkers()" />
 <label for="companyFilter"><b>Customer</b></label>
 <input type="text" id="companyFilter" oninput="filterMarkers()" />
 <label for="colorFilter"><b>Status</b></label>
@@ -105,7 +105,7 @@
             data.forEach(function(rawItem) {
                 var item = normalizeItem(rawItem); // Normalize keys here
                 var color;
-                if (item["Days Out:"] >= 350) {
+                if (item["Days Out:"] >= 100) {
                     color = "purple";
                 } else if (item["Empty Status"] === "Yes") {
                     color = "green";
