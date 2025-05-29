@@ -95,7 +95,7 @@
             data.forEach(function(rawItem) {
                 var item = normalizeItem(rawItem); // Normalize keys here
                 var color;
-                if (item["Days Out:"] >= 350) {
+                if (item["Days Out:"] >= 100) {
                     color = "purple";
                 } else if (item["Empty Status"] === "Yes") {
                     color = "green";
