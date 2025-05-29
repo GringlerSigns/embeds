@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -84,16 +83,15 @@
         });
 
         function normalizeItem(item) {
-            // Map possible header variants to expected keys
             return {
-                "Trailer:": item["Trailer:"] || item["TRL #"] || "",
-                "Job:": item["Job:"] || item["Job #"] || "",
-                "Shipment:": item["Shipment:"] || item["SHP #"] || "",
-                "Days Out:": item["Days Out:"] || item["# Days"] || 0,
-                "Number Uprights Out:": item["Number Uprights Out:"] || item["Uprights Out"] || "",
-                "Status:": item["Status:"] || item["Status"] || "",
-                "Empty Status": item["Empty Status"] || item["Empty"] || "",
-                "Company:": item["Company:"] || item["Customer"] || item["Company"] || "",
+                "Trailer": item["Trailer:"] || item["TRL #"] || "",
+                "Job": item["Job:"] || item["Job #"] || "",
+                "Shipment": item["Shipment:"] || item["SHP #"] || "",
+                "DaysOut": item["Days Out:"] || item["# Days"] || 0,
+                "UprightsOut": item["Number Uprights Out:"] || item["Uprights Out"] || "",
+                "Status": item["Status:"] || item["Status"] || "",
+                "EmptyStatus": item["Empty Status"] || item["Empty"] || "",
+                "Company": item["Company"] || item["Customer"] || "",
                 "Latitude": item["Latitude"] || item["Lat"] || "",
                 "Longitude": item["Longitude"] || item["Lon"] || item["Lng"] || ""
             };
@@ -103,16 +101,25 @@
             markers.clearLayers();
             allMarkers = [];
             data.forEach(function(rawItem) {
-                var item = normalizeItem(rawItem); // Normalize keys here
-                var color;
-                if (item["Days Out:"] >= 100) {
-                    color = "purple";
-                } else if (item["Empty Status"] === "Yes") {
-                    color = "green";
-                } else {
-                    color = "red";
+                var item = normalizeItem(rawItem);
+                var statusTags = [];
+
+                if (item["DaysOut"] >= 100) {
+                    statusTags.push("purple");
                 }
-                item.color = color; 
+                if (item["EmptyStatus"] === "Yes") {
+                    statusTags.push("green");
+                }
+                if (statusTags.length === 0) {
+                    statusTags.push("red");
+                }
+
+                item.statusTags = statusTags;
+
+                // Choose primary color for marker icon
+                var color = statusTags.includes("purple") ? "purple" :
+                            statusTags.includes("green") ? "green" : "red";
+
                 var icon = L.icon({
                     iconUrl: getIconUrl(color),
                     iconSize: [25, 41],
@@ -121,6 +128,7 @@
                     shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
                     shadowSize: [41, 41]
                 });
+
                 var marker = L.marker([item.Latitude, item.Longitude], { icon: icon })
                     .bindPopup(createPopupContent(item));
                 marker.item = item;
@@ -130,7 +138,6 @@
             map.addLayer(markers);
         }
 
-        // Add this helper function below addMarkers
         function getIconUrl(color) {
             switch (color) {
                 case "green":
@@ -140,24 +147,23 @@
                 case "red":
                 default:
                     return "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png";
+            }
         }
-}
 
         function createPopupContent(item) {
             return `
                 <table class="popup-table">
-                    <tr><th>Company</th><td>${item["Company:"]}</td></tr>
-                    <tr><th>Trailer #</th><td>${item["Trailer:"]}</td></tr>
-                    <tr><th>Job #</th><td>${item["Job:"]}</td></tr>
-                    <tr><th>Shipment #</th><td>${item["Shipment:"]}</td></tr>
-                    <tr><th># Days Out</th><td>${item["Days Out:"]}</td></tr>
-                    <tr><th>Uprights Out</th><td>${item["Number Uprights Out:"]}</td></tr>
-                    <tr><th>Status</th><td>${item["Status:"]}</td></tr>
+                    <tr><th>Company</th><td>${String(item["Company"])}</td></tr>
+                    <tr><th>Trailer #</th><td>${String(item["Trailer"])}</td></tr>
+                    <tr><th>Job #</th><td>${String(item["Job"])}</td></tr>
+                    <tr><th>Shipment #</th><td>${String(item["Shipment"])}</td></tr>
+                    <tr><th># Days Out</th><td>${String(item["DaysOut"])}</td></tr>
+                    <tr><th>Uprights Out</th><td>${String(item["UprightsOut"])}</td></tr>
+                    <tr><th>Status</th><td>${String(item["Status"])}</td></tr>
                 </table>
             `;
         }
 
-        
         function filterMarkers() {
             var trailerFilter = document.getElementById('trailerFilter').value.toLowerCase();
             var jobFilter = document.getElementById('jobFilter').value.toLowerCase();
@@ -166,18 +172,17 @@
 
             markers.clearLayers();
             allMarkers.forEach(function(marker) {
-            var item = marker.item;
-        if (
-            (trailerFilter === "" || item["Trailer:"].toLowerCase().includes(trailerFilter)) &&
-            (jobFilter === "" || item["Job:"].toLowerCase().includes(jobFilter)) &&
-            (companyFilter === "" || item["Company:"].toLowerCase().includes(companyFilter)) &&
-            (colorFilter === "" || item.color === colorFilter)
-        ) {
-            markers.addLayer(marker);
-    } 
-   });
-}
-
+                var item = marker.item;
+                if (
+                    (trailerFilter === "" || String(item["Trailer"]).toLowerCase().includes(trailerFilter)) &&
+                    (jobFilter === "" || String(item["Job"]).toLowerCase().includes(jobFilter)) &&
+                    (companyFilter === "" || String(item["Company"]).toLowerCase().includes(companyFilter)) &&
+                    (colorFilter === "" || item.statusTags.includes(colorFilter))
+                ) {
+                    markers.addLayer(marker);
+                }
+            });
+        }
     </script>
 </body>
 </html>
