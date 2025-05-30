@@ -188,14 +188,13 @@
         }
               
         
-        function findNearbyEmptyTrailers(lat, lng, radiusMiles = 150) {
+        function findNearbyEmptyTrailersAlongRoute(routeLine, radiusMiles = 150) {
             const radiusFeet = radiusMiles * 5280;
-            console.log(`Driver location: (${lat}, ${lng})`);
-            console.log(`Search radius: ${radiusFeet.toFixed(2)} feet`);
+            const routePoints = routeLine.getLatLngs(); // array of lat/lngs along the route
 
             const nearby = allMarkers.filter(marker => {
                 const item = marker.item;
-                const isEmpty = item.EmptyStatus === "Yes";
+                if (item.EmptyStatus !== "Yes") return false;
 
                 const trailerLat = parseFloat(item.Latitude);
                 const trailerLng = parseFloat(item.Longitude);
@@ -205,20 +204,17 @@
                     return false;
                 }
 
-                // Check if coordinates are reversed
-                const distFeet = map.distance([lat, lng], [trailerLat, trailerLng]) * 3.28084;
+                const trailerLatLng = L.latLng(trailerLat, trailerLng);
 
-                console.log(`Trailer ${item.Trailer || "N/A"} at (${trailerLat}, ${trailerLng})`);
-                console.log(` - EmptyStatus: ${item.EmptyStatus}`);
-                console.log(` - Distance: ${distFeet.toFixed(2)} feet`);
-
-                return isEmpty && distFeet <= radiusFeet;
+                return routePoints.some(routePoint => {
+                    const distFeet = map.distance(routePoint, trailerLatLng) * 3.28084;
+                    return distFeet <= radiusFeet;
+                });
             });
 
-            console.log(`Nearby empty trailers found: ${nearby.length}`);
+            console.log(`Nearby empty trailers found along route: ${nearby.length}`);
             return nearby;
-    }
-
+        }
         
         function planRoute() {
             const input = prompt("Enter driver's coordinates as 'latitude, longitude':");
@@ -229,58 +225,100 @@
             let lng = parseFloat(lngStr);
 
             if (isNaN(lat) || isNaN(lng)) {
-            alert("Invalid coordinates. Please enter in the format: latitude, longitude");
-            return;
-        }
+                alert("Invalid coordinates. Please enter in the format: latitude, longitude");
+                return;
+            }
 
-            // Warn or auto-correct if longitude is positive
             if (lng > 0) {
                 const confirmFlip = confirm("Longitude appears to be positive. Should I flip it to negative (U.S.-based)?");
                 if (confirmFlip) {
                     lng = -lng;
+                }
+            }       
+
+            const start = L.latLng(lat, lng);
+            const end = L.latLng(34.711147, -92.193983); // Little Rock
+
+            const routingControl = L.Routing.control({
+                waypoints: [start, end],
+                routeWhileDragging: true,
+                formatter: new L.Routing.Formatter({ language: 'en', units: 'imperial' }),
+                createMarker: function(i, wp) {
+                    return L.marker(wp.latLng, { draggable: true });
+                }
+            }).addTo(map);
+
+            
+            let routeCheckCount = 0;
+            const maxRouteChecks = 2;
+
+            
+        routingControl.on('routesfound', function(e) {
+            if (routeCheckCount >= maxRouteChecks) {
+                console.log("Route check limit reached.");
+                return;
             }
-        }
 
-        const nearby = findNearbyEmptyTrailers(lat, lng);
-        if (nearby.length === 0) {
-            alert("No empty trailers within 150 miles.");
-            return;
-        }
+            routeCheckCount++;
 
-        const waypoints = [
-            L.latLng(lat, lng),
-            ...nearby.map(m => m.getLatLng()),
-            L.latLng(34.711147, -92.193983) // Return to Little Rock
-        ];
+            const routeLine = L.polyline(e.routes[0].coordinates.map(c => L.latLng(c.lat, c.lng)));
+            const trailersAlongRoute = findNearbyEmptyTrailersAlongRoute(routeLine);
 
-        L.Routing.control({
-            waypoints: waypoints,
-            routeWhileDragging: true,
-            formatter: new L.Routing.Formatter({ language: 'en', units: 'imperial' }),
-            createMarker: function(i, wp) {
-                return L.marker(wp.latLng, { draggable: true });
-            }
-        }).addTo(map);
-    }
+            console.log("Trailers along route:", trailersAlongRoute);
 
+            // Highlight matched trailers
+        trailersAlongRoute.forEach(marker => {
+            const highlightIcon = L.icon({
+                iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png",
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+                shadowSize: [41, 41]
+            });
 
-        L.Control.PlanRoute = L.Control.extend({
-            onAdd: function(map) {
-                var div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
-                div.innerHTML = '<button onclick="planRoute()">Plan Route</button>';
-                return div;
-            },
-            onRemove: function(map) {
-                // Nothing to do here
-            }
+            marker.setIcon(highlightIcon);
+            marker.addTo(map);
         });
 
-        L.control.planRoute = function(opts) {
-            return new L.Control.PlanRoute(opts);
-        }
+        // Rebuild route with trailer waypoints
+            const trailerWaypoints = trailersAlongRoute.map(m => m.getLatLng());
+            const fullWaypoints = [e.routes[0].waypoints[0].latLng, ...trailerWaypoints, e.routes[0].waypoints.slice(-1)[0].latLng];
 
-        L.control.planRoute({ position: 'topright' }).addTo(map);
-    
-    </script>
+            routingControl.setWaypoints(fullWaypoints);
+        });
+
+        }
+            L.Control.PlanRoute = L.Control.extend({
+                onAdd: function(map) {
+                    var btn = L.DomUtil.create('button', '');
+                    btn.innerHTML = 'Plan Route';
+                    btn.style.backgroundColor = 'white';
+                    btn.style.padding = '5px';
+                    btn.style.cursor = 'pointer';
+                    btn.style.border = '2px solid #666';
+                    btn.style.borderRadius = '4px';
+                    btn.style.boxShadow = '0 1px 5px rgba(0,0,0,0.65)';
+
+            L.DomEvent.on(btn, 'click', function(e) {
+                L.DomEvent.stopPropagation(e);
+                L.DomEvent.preventDefault(e);
+                planRoute();
+            });
+
+            return btn;
+        },
+
+        onRemove: function(map) {
+            // Nothing to clean up
+        }
+    });
+
+    L.control.planRoute = function(opts) {
+        return new L.Control.PlanRoute(opts);
+    };
+
+    L.control.planRoute({ position: 'topright' }).addTo(map);
+</script>
 </body>
 </html>
