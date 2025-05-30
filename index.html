@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
     <style>
         body { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: larger; }
         #map { height: 600px; }
@@ -48,6 +49,7 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script>
     <script>
         var map = L.map('map').setView([34.711539, -92.194090], 5);
 
@@ -82,18 +84,19 @@
             }
         });
 
+        
         function normalizeItem(item) {
             return {
-                "Trailer": item["Trailer:"] || item["TRL #"] || "",
-                "Job": item["Job:"] || item["Job #"] || "",
-                "Shipment": item["Shipment:"] || item["SHP #"] || "",
-                "DaysOut": item["Days Out:"] || item["# Days"] || 0,
-                "UprightsOut": item["Number Uprights Out:"] || item["Uprights Out"] || "",
-                "Status": item["Status:"] || item["Status"] || "",
-                "EmptyStatus": item["Empty Status"] || item["Empty"] || "",
-                "Company": item["Company"] || item["Customer"] || "",
-                "Latitude": item["Latitude"] || item["Lat"] || "",
-                "Longitude": item["Longitude"] || item["Lon"] || item["Lng"] || ""
+                Trailer: item["Trailer:"] || item["TRL #"] || "",
+                Job: item["Job:"] || item["Job #"] || "",
+                Shipment: item["Shipment:"] || item["SHP #"] || "",
+                DaysOut: item["Days Out:"] || item["# Days"] || 0,
+                UprightsOut: item["Number Uprights Out:"] || item["Uprights Out"] || "",
+                Status: item["Status:"] || item["Status"] || "",
+                EmptyStatus: item["Empty Status"] || item["Empty"] || "",
+                Company: item["Company"] || item["Customer"] || "",
+                Latitude: parseFloat(item["Latitude"] || item["Lat"] || ""),
+                Longitude: parseFloat(item["Longitude"] || item["Lon"] || item["Lng"] || "")
             };
         }
 
@@ -183,6 +186,101 @@
                 }
             });
         }
+              
+        
+        function findNearbyEmptyTrailers(lat, lng, radiusMiles = 150) {
+            const radiusFeet = radiusMiles * 5280;
+            console.log(`Driver location: (${lat}, ${lng})`);
+            console.log(`Search radius: ${radiusFeet.toFixed(2)} feet`);
+
+            const nearby = allMarkers.filter(marker => {
+                const item = marker.item;
+                const isEmpty = item.EmptyStatus === "Yes";
+
+                const trailerLat = parseFloat(item.Latitude);
+                const trailerLng = parseFloat(item.Longitude);
+
+                if (isNaN(trailerLat) || isNaN(trailerLng)) {
+                    console.warn(`Invalid coordinates for trailer ${item.Trailer}: (${item.Latitude}, ${item.Longitude})`);
+                    return false;
+                }
+
+                // Check if coordinates are reversed
+                const distFeet = map.distance([lat, lng], [trailerLat, trailerLng]) * 3.28084;
+
+                console.log(`Trailer ${item.Trailer || "N/A"} at (${trailerLat}, ${trailerLng})`);
+                console.log(` - EmptyStatus: ${item.EmptyStatus}`);
+                console.log(` - Distance: ${distFeet.toFixed(2)} feet`);
+
+                return isEmpty && distFeet <= radiusFeet;
+            });
+
+            console.log(`Nearby empty trailers found: ${nearby.length}`);
+            return nearby;
+    }
+
+        
+        function planRoute() {
+            const input = prompt("Enter driver's coordinates as 'latitude, longitude':");
+            if (!input) return;
+
+            const [latStr, lngStr] = input.split(',').map(s => s.trim());
+            const lat = parseFloat(latStr);
+            let lng = parseFloat(lngStr);
+
+            if (isNaN(lat) || isNaN(lng)) {
+            alert("Invalid coordinates. Please enter in the format: latitude, longitude");
+            return;
+        }
+
+            // Warn or auto-correct if longitude is positive
+            if (lng > 0) {
+                const confirmFlip = confirm("Longitude appears to be positive. Should I flip it to negative (U.S.-based)?");
+                if (confirmFlip) {
+                    lng = -lng;
+            }
+        }
+
+        const nearby = findNearbyEmptyTrailers(lat, lng);
+        if (nearby.length === 0) {
+            alert("No empty trailers within 150 miles.");
+            return;
+        }
+
+        const waypoints = [
+            L.latLng(lat, lng),
+            ...nearby.map(m => m.getLatLng()),
+            L.latLng(34.711147, -92.193983) // Return to Little Rock
+        ];
+
+        L.Routing.control({
+            waypoints: waypoints,
+            routeWhileDragging: true,
+            formatter: new L.Routing.Formatter({ language: 'en', units: 'imperial' }),
+            createMarker: function(i, wp) {
+                return L.marker(wp.latLng, { draggable: true });
+            }
+        }).addTo(map);
+    }
+
+
+        L.Control.PlanRoute = L.Control.extend({
+            onAdd: function(map) {
+                var div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+                div.innerHTML = '<button onclick="planRoute()">Plan Route</button>';
+                return div;
+            },
+            onRemove: function(map) {
+                // Nothing to do here
+            }
+        });
+
+        L.control.planRoute = function(opts) {
+            return new L.Control.PlanRoute(opts);
+        }
+
+        L.control.planRoute({ position: 'topright' }).addTo(map);
+    
     </script>
 </body>
 </html>
