@@ -168,8 +168,8 @@
         }
 
         function filterMarkers() {
-            var trailerFilter = document.getElementById('trailerFilter').value.toLowerCase();
-            var jobFilter = document.getElementById('jobFilter').value.toLowerCase();
+            var trailerFilter = document.getElementById('trailerFilter').value.toLowerCase().trim();
+            var jobFilter = document.getElementById('jobFilter').value.toLowerCase().trim();
             var companyFilter = document.getElementById('companyFilter').value.toLowerCase();
             var colorFilter = document.getElementById('colorFilter').value;
 
@@ -177,16 +177,15 @@
             allMarkers.forEach(function(marker) {
                 var item = marker.item;
                 if (
-                    (trailerFilter === "" || String(item["Trailer"]).toLowerCase().trim(trailerFilter)) &&
-                    (jobFilter === "" || String(item["Job"]).toLowerCase().trim(jobFilter)) &&
+                    (trailerFilter === "" || String(item["Trailer"]).toLowerCase().trim() === trailerFilter) &&
+                    (jobFilter === "" || String(item["Job"]).toLowerCase().trim() === jobFilter) &&
                     (companyFilter === "" || String(item["Company"]).toLowerCase().includes(companyFilter)) &&
                     (colorFilter === "" || item.statusTags.includes(colorFilter))
                 ) {
                     markers.addLayer(marker);
                 }
             });
-        }
-              
+        }     
         
         function findNearbyEmptyTrailersAlongRoute(routeLine, radiusMiles = 150) {
             const radiusFeet = radiusMiles * 5280;
