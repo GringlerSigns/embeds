@@ -60,7 +60,8 @@
 
         var markers = L.markerClusterGroup();
         var allMarkers = [];
-
+        var highlightedMarkers = [];
+        
         document.getElementById('fileInput').addEventListener('change', function(event) {
             var file = event.target.files[0];
             var reader = new FileReader();
@@ -167,6 +168,14 @@
             `;
         }
 
+        function closePopup(btn) {
+            var popup = btn.closest('.leaflet-popup-content');
+            if (popup) {
+                var map = window.map; // assuming your map variable is global
+                map.closePopup();
+            }
+        }
+
         function filterMarkers() {
             var trailerFilter = document.getElementById('trailerFilter').value.toLowerCase().trim();
             var jobFilter = document.getElementById('jobFilter').value.toLowerCase().trim();
@@ -215,6 +224,8 @@
             return nearby;
         }
         
+        var routingControl = null;
+
         function planRoute() {
             const input = prompt("Enter driver's coordinates as 'latitude, longitude':");
             if (!input) return;
@@ -238,12 +249,17 @@
             const start = L.latLng(lat, lng);
             const end = L.latLng(34.711147, -92.193983); // Little Rock
 
-            const routingControl = L.Routing.control({
+            if (routingControl) {
+                map.removeControl(routingControl);
+                routingControl = null;
+            }
+            routingControl = L.Routing.control({
                 waypoints: [start, end],
                 routeWhileDragging: true,
+                addWaypoints: false,
                 formatter: new L.Routing.Formatter({ language: 'en', units: 'imperial' }),
                 createMarker: function(i, wp) {
-                    return L.marker(wp.latLng, { draggable: true });
+                    return L.marker(wp.latLng, { draggable: false });
                 }
             }).addTo(map);
 
@@ -266,6 +282,9 @@
             console.log("Trailers along route:", trailersAlongRoute);
 
             // Highlight matched trailers
+        highlightedMarkers.forEach(m => map.removeLayer(m)); // Remove old highlights
+        highlightedMarkers = [];
+
         trailersAlongRoute.forEach(marker => {
             const highlightIcon = L.icon({
                 iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png",
@@ -278,6 +297,7 @@
 
             marker.setIcon(highlightIcon);
             marker.addTo(map);
+            highlightedMarkers.push(marker);
         });
 
         // Rebuild route with trailer waypoints
@@ -318,6 +338,44 @@
     };
 
     L.control.planRoute({ position: 'topright' }).addTo(map);
+
+    L.Control.ResetRoute = L.Control.extend({
+    onAdd: function(map) {
+        var btn = L.DomUtil.create('button', '');
+        btn.id = 'resetRouteBtn';
+        btn.innerHTML = 'Reset Route';
+        btn.style.backgroundColor = 'white';
+        btn.style.padding = '5px';
+        btn.style.cursor = 'pointer';
+        btn.style.border = '2px solid #666';
+        btn.style.borderRadius = '4px';
+        btn.style.boxShadow = '0 1px 5px rgba(0,0,0,0.65)';
+        btn.style.margin = '10px';
+
+        L.DomEvent.on(btn, 'click', function(e) {
+            L.DomEvent.stopPropagation(e);
+            L.DomEvent.preventDefault(e);
+            if (routingControl) {
+                map.removeControl(routingControl);
+                routingControl = null;
+            }
+            if (highlightedMarkers && highlightedMarkers.length) {
+                highlightedMarkers.forEach(m => map.removeLayer(m));
+                highlightedMarkers = [];
+            }
+        });
+
+        return btn;
+    },
+    onRemove: function(map) {
+    }
+});
+
+L.control.resetRoute = function(opts) {
+    return new L.Control.ResetRoute(opts);
+};
+L.control.resetRoute({ position: 'topright' }).addTo(map);
+
 </script>
 </body>
 </html>
