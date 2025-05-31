@@ -177,8 +177,8 @@
             allMarkers.forEach(function(marker) {
                 var item = marker.item;
                 if (
-                    (trailerFilter === "" || String(item["Trailer"]).toLowerCase().includes(trailerFilter)) &&
-                    (jobFilter === "" || String(item["Job"]).toLowerCase().includes(jobFilter)) &&
+                    (trailerFilter === "" || String(item["Trailer"]).toLowerCase().trim(trailerFilter)) &&
+                    (jobFilter === "" || String(item["Job"]).toLowerCase().trim(jobFilter)) &&
                     (companyFilter === "" || String(item["Company"]).toLowerCase().includes(companyFilter)) &&
                     (colorFilter === "" || item.statusTags.includes(colorFilter))
                 ) {
