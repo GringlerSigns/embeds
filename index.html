@@ -18,7 +18,7 @@
     </style>
 </head>
 <body>
-    <h3>Interstate Highway Sign Corp. Trailer Mapping</h3>
+    <h3>Interstate Highway Sign Corp. Trailer Mapping</h3><div id="infoPanel" style="padding: 10px; margin-top: 5px; width: 250px; position: absolute; top: 50px; right: 50px;"><p>To plan a return trip for collecting empty trailers, Press the "Plan Route" button. An input box will appear requesting the Latitude and Longitude for the Driver's starting location.<br><br>Empty trailers along the route will be shown as Gold markers on the map.</p></div>
     <p>Upload the most recent <a href="https://interstatehighwaysigncorp.sharepoint.com/sites/Shipping/_layouts/download.aspx?SourceUrl=https://interstatehighwaysigncorp.sharepoint.com/sites/Shipping/Documents/Trailer%20List/Trailer%20List.xlsx">Trailer List</a> file to view the information on the map.</p>
     <input type="file" id="fileInput" />
     <br>
@@ -28,8 +28,7 @@
         <li>🟩 Green: <b>Empty</b> Trailer</li>
         <li>🟪 Purple: Trailer out 100 days or longer</li>
     </ul>
-    
-<p><b>Filter by:</b></p>
+    <p><b>Filter by:</b></p>
 <label for="trailerFilter"><b>Trailer #</b></label>
 <input type="text" id="trailerFilter" oninput="filterMarkers()" />
 <label for="jobFilter"><b>Job #</b></label>
