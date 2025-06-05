@@ -18,7 +18,7 @@
     </style>
 </head>
 <body>
-    <h3>Interstate Highway Sign Corp. Trailer Mapping</h3><div id="infoPanel" style="padding: 10px; margin-top: 5px; width: 250px; position: absolute; top: 50px; right: 50px;"><p>To plan a return trip for collecting empty trailers, press the "Plan Route" button. An input box will appear requesting the Latitude and Longitude for the Driver's starting location.<br><br>Empty trailers along the route will be shown as Gold markers on the map.</p></div>
+    <h3>Interstate Highway Sign Corp. Trailer Mapping</h3><div id="infoPanel" style="padding: 10px; margin-top: 5px; width: 250px; position: absolute; top: 50px; right: 50px;"><p>To plan a return trip for collecting empty trailers, Press the "Plan Route" button. An input box will appear requesting the Latitude and Longitude for the Driver's starting location.<br><br>Empty trailers along the route will be shown as Gold markers on the map.</p></div>
     <p>Upload the most recent <a href="https://interstatehighwaysigncorp.sharepoint.com/sites/Shipping/_layouts/download.aspx?SourceUrl=https://interstatehighwaysigncorp.sharepoint.com/sites/Shipping/Documents/Trailer%20List/Trailer%20List.xlsx">Trailer List</a> file to view the information on the map.</p>
     <input type="file" id="fileInput" />
     <br>
@@ -41,6 +41,7 @@
     <option value="red">Red (Not empty)</option>
     <option value="green">Green (Empty)</option>
     <option value="purple">Purple (100+ days out)</option>
+    <option value="gold">Gold (Along Route)</option>
 </select>
 
     <div id="map"></div>
@@ -199,12 +200,24 @@
             const radiusFeet = radiusMiles * 5280;
             const routePoints = routeLine.getLatLngs(); // array of lat/lngs along the route
 
+            const HQ_LAT = 34.711147;
+            const HQ_LNG = -92.193983;
+            const HQ_TOLERANCE = 0.0001; // Small tolerance for float comparison
+
             const nearby = allMarkers.filter(marker => {
                 const item = marker.item;
                 if (item.EmptyStatus !== "Yes") return false;
 
                 const trailerLat = parseFloat(item.Latitude);
                 const trailerLng = parseFloat(item.Longitude);
+
+                // Exclude trailers at HQ
+                if (
+                    Math.abs(trailerLat - HQ_LAT) < HQ_TOLERANCE &&
+                    Math.abs(trailerLng - HQ_LNG) < HQ_TOLERANCE
+                ) {
+                    return false;
+                }
 
                 if (isNaN(trailerLat) || isNaN(trailerLng)) {
                     console.warn(`Invalid coordinates for trailer ${item.Trailer}: (${item.Latitude}, ${item.Longitude})`);
@@ -219,7 +232,7 @@
                 });
             });
 
-            console.log(`Nearby empty trailers found along route: ${nearby.length}`);
+            console.log(`Nearby empty trailers found along route (excluding HQ): ${nearby.length}`);
             return nearby;
         }
         
@@ -281,26 +294,41 @@
             console.log("Trailers along route:", trailersAlongRoute);
 
             // Highlight matched trailers
-        highlightedMarkers.forEach(m => map.removeLayer(m)); // Remove old highlights
-        highlightedMarkers = [];
+            highlightedMarkers.forEach(m => map.removeLayer(m)); // Remove old highlights
+            highlightedMarkers = [];
 
-        trailersAlongRoute.forEach(marker => {
-            const highlightIcon = L.icon({
-                iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png",
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34],
-                shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-                shadowSize: [41, 41]
+            trailersAlongRoute.forEach(marker => {
+                const highlightIcon = L.icon({
+                    iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png",
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34],
+                    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+                    shadowSize: [41, 41]
+                });
+
+                marker.setIcon(highlightIcon);
+                marker.addTo(map);
+                // Add gold status tag for filtering
+                if (!marker.item.statusTags.includes("gold")) {
+                    marker.item.statusTags.push("gold");
+                }
+                highlightedMarkers.push(marker);
             });
 
-            marker.setIcon(highlightIcon);
-            marker.addTo(map);
-            highlightedMarkers.push(marker);
-        });
+            // Exclude HQ trailers from waypoints (redundant, but extra safe)
+            const HQ_LAT = 34.711147;
+            const HQ_LNG = -92.193983;
+            const HQ_TOLERANCE = 0.0001;
 
-        // Rebuild route with trailer waypoints
-            const trailerWaypoints = trailersAlongRoute.map(m => m.getLatLng());
+            const trailerWaypoints = trailersAlongRoute
+                .filter(m => {
+                    const lat = m.getLatLng().lat;
+                    const lng = m.getLatLng().lng;
+                    return !(Math.abs(lat - HQ_LAT) < HQ_TOLERANCE && Math.abs(lng - HQ_LNG) < HQ_TOLERANCE);
+                })
+                .map(m => m.getLatLng());
+
             const fullWaypoints = [e.routes[0].waypoints[0].latLng, ...trailerWaypoints, e.routes[0].waypoints.slice(-1)[0].latLng];
 
             routingControl.setWaypoints(fullWaypoints);
