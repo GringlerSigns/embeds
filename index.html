@@ -112,7 +112,7 @@
                 if (item["DaysOut"] >= 100) {
                     statusTags.push("purple");
                 }
-                if (item["EmptyStatus"] === "Yes") {
+                if (item["Status"] === "EMPTY") {
                     statusTags.push("green");
                 }
                 if (statusTags.length === 0) {
@@ -207,7 +207,7 @@
 
             const nearby = allMarkers.filter(marker => {
                 const item = marker.item;
-                if (item.EmptyStatus !== "Yes") return false;
+                if (item.Status !== "Empty") return false;
 
                 const trailerLat = parseFloat(item.Latitude);
                 const trailerLng = parseFloat(item.Longitude);
