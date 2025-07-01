@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -16,7 +15,8 @@
     </style>
 </head>
 <body>
-    <h2>Trailer Route Planner</h2>
+    <h2>Trailer Locator and Return Trip Planner</h2>
+    <p>Upload the most recent <a href="https://interstatehighwaysigncorp.sharepoint.com/sites/Shipping/_layouts/download.aspx?SourceUrl=https://interstatehighwaysigncorp.sharepoint.com/sites/Shipping/Documents/Trailer%20List/Trailer%20List.xlsx">Trailer List</a> file to view the information on the map.</p>
     <div class="control-panel">
         <input type="file" id="fileInput" />
         <button onclick="planRoute()">Plan Route</button>
@@ -219,13 +219,18 @@
             const HQ_TOLERANCE = 0.0001;
             const radiusFeet = radiusMiles * 5280;
 
-            const routeWaypoints = [
-                [startLat, startLng],
-                [29.7604, -95.3698],
-                [30.2672, -97.7431],
-                [32.7767, -96.7970],
-                [HQ_LAT, HQ_LNG]
-            ];
+            // Use the current route from the routingControl if available
+            let routePoints = [];
+            if (routingControl && routingControl._routes && routingControl._routes.length > 0) {
+                // Get the coordinates along the route (as an array of [lat, lng])
+                routePoints = routingControl._routes[0].coordinates.map(c => [c.lat, c.lng]);
+            } else {
+                // Fallback: just use start and HQ
+                routePoints = [
+                    [startLat, startLng],
+                    [HQ_LAT, HQ_LNG]
+                ];
+            }
 
             return allMarkers.filter(marker => {
                 const item = marker.item;
@@ -236,7 +241,8 @@
                 if (Math.abs(lat - HQ_LAT) < HQ_TOLERANCE && Math.abs(lng - HQ_LNG) < HQ_TOLERANCE) return false;
 
                 const trailerLatLng = L.latLng(lat, lng);
-                return routeWaypoints.some(([wpLat, wpLng]) => {
+                // Check if the trailer is within radiusFeet of any point along the route
+                return routePoints.some(([wpLat, wpLng]) => {
                     const wpLatLng = L.latLng(wpLat, wpLng);
                     const distFeet = map.distance(trailerLatLng, wpLatLng) * 3.28084;
                     return distFeet <= radiusFeet;
