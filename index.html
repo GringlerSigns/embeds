@@ -1,7 +1,8 @@
+
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Interstate Highway Sign Corp. Trailer Mapping</title>
+    <title>Trailer Route Planner</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
@@ -9,51 +10,40 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
     <style>
-        body { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: larger; }
         #map { height: 600px; }
-        .popup-table { border-collapse: collapse; width: 100%; }
-        .popup-table th, .popup-table td { border: 1px solid black; padding: 5px; text-align: left; }
-        .highlight { color: red; font-weight: bold; background-color: yellow; }
-        ul { list-style-type: none; padding: 0; margin: 0; }
+        body { font-family: Arial, sans-serif; }
+        .control-panel { margin: 10px; }
     </style>
 </head>
 <body>
-    <h3>Interstate Highway Sign Corp. Trailer Mapping</h3><div id="infoPanel" style="padding: 10px; margin-top: 5px; width: 250px; position: absolute; top: 50px; right: 50px;"><p>To plan a return trip for collecting empty trailers, press the "Plan Route" button. An input box will appear requesting the Latitude and Longitude for the Driver's starting location.<br><br>Empty trailers along the route will be shown as Gold markers on the map.</p></div>
-    <p>Upload the most recent <a href="https://interstatehighwaysigncorp.sharepoint.com/sites/Shipping/_layouts/download.aspx?SourceUrl=https://interstatehighwaysigncorp.sharepoint.com/sites/Shipping/Documents/Trailer%20List/Trailer%20List.xlsx">Trailer List</a> file to view the information on the map.</p>
-    <input type="file" id="fileInput" />
-    <br>
-    <p><b>Color Coding:</b></p>
-    <ul>
-        <li>🟥 Red: <b>Not empty</b> or not loaded (if at HQ)</li>
-        <li>🟩 Green: <b>Empty</b> Trailer</li>
-        <li>🟪 Purple: Trailer out 100 days or longer</li>
-        <l1>🟨 Gold: Empty trailers along return route</l1>
-    </ul>
-    <p><b>Filter by:</b></p>
-<label for="trailerFilter"><b>Trailer #</b></label>
-<input type="text" id="trailerFilter" oninput="filterMarkers()" />
-<label for="jobFilter"><b>Job #</b></label>
-<input type="text" id="jobFilter" oninput="filterMarkers()" />
-<label for="companyFilter"><b>Customer</b></label>
-<input type="text" id="companyFilter" oninput="filterMarkers()" />
-<label for="colorFilter"><b>Status</b></label>
-<select id="colorFilter" onchange="filterMarkers()">
-    <option value="">All</option>
-    <option value="red">Red (Not empty)</option>
-    <option value="green">Green (Empty)</option>
-    <option value="purple">Purple (100+ days out)</option>
-    <option value="gold">Gold (Along Route)</option>
-</select>
-
+    <h2>Trailer Route Planner</h2>
+    <div class="control-panel">
+        <input type="file" id="fileInput" />
+        <button onclick="planRoute()">Plan Route</button>
+        <button onclick="resetRoute()">Reset Route</button>
+        <br><br>
+        <label>Trailer #: <input type="text" id="trailerFilter" oninput="filterMarkers()"></label>
+        <label>Job #: <input type="text" id="jobFilter" oninput="filterMarkers()"></label>
+        <label>Customer: <input type="text" id="companyFilter" oninput="filterMarkers()"></label>
+        <label>Status:
+            <select id="colorFilter" onchange="filterMarkers()">
+                <option value="">All</option>
+                <option value="red">Red (Not empty)</option>
+                <option value="green">Green (Empty)</option>
+                <option value="purple">Purple (100+ days)</option>
+                <option value="gold">Gold (Along Route)</option>
+            </select>
+        </label>
+    </div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script>
+
     <script>
         var map = L.map('map').setView([34.711539, -92.194090], 5);
-
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '© OpenStreetMap'
@@ -62,7 +52,8 @@
         var markers = L.markerClusterGroup();
         var allMarkers = [];
         var highlightedMarkers = [];
-        
+        var routingControl = null;
+
         document.getElementById('fileInput').addEventListener('change', function(event) {
             var file = event.target.files[0];
             var reader = new FileReader();
@@ -86,16 +77,13 @@
             }
         });
 
-        
         function normalizeItem(item) {
             return {
                 Trailer: item["Trailer:"] || item["TRL #"] || "",
                 Job: item["Job:"] || item["Job #"] || "",
                 Shipment: item["Shipment:"] || item["SHP #"] || "",
                 DaysOut: item["Days Out:"] || item["# Days"] || 0,
-                UprightsOut: item["Number Uprights Out:"] || item["Uprights Out"] || "",
-                Status: item["Status:"] || item["Status"] || "",
-                EmptyStatus: item["Empty Status"] || item["Empty"] || "",
+                Status: item["Status"] || item["Empty Status"] || item["Empty"] || "",
                 Company: item["Company"] || item["Customer"] || "",
                 Latitude: parseFloat(item["Latitude"] || item["Lat"] || ""),
                 Longitude: parseFloat(item["Longitude"] || item["Lon"] || item["Lng"] || "")
@@ -109,19 +97,11 @@
                 var item = normalizeItem(rawItem);
                 var statusTags = [];
 
-                if (item["DaysOut"] >= 100) {
-                    statusTags.push("purple");
-                }
-                if (item["Status"] === "EMPTY") {
-                    statusTags.push("green");
-                }
-                if (statusTags.length === 0) {
-                    statusTags.push("red");
-                }
+                if (item.DaysOut >= 100) statusTags.push("purple");
+                if (item.Status.toUpperCase() === "EMPTY") statusTags.push("green");
+                if (statusTags.length === 0) statusTags.push("red");
 
                 item.statusTags = statusTags;
-
-                // Choose primary color for marker icon
                 var color = statusTags.includes("purple") ? "purple" :
                             statusTags.includes("green") ? "green" : "red";
 
@@ -135,7 +115,7 @@
                 });
 
                 var marker = L.marker([item.Latitude, item.Longitude], { icon: icon })
-                    .bindPopup(createPopupContent(item));
+                    .bindPopup(`<b>Company:</b> ${item.Company}<br><b>Trailer:</b> ${item.Trailer}<br><b>Job:</b> ${item.Job}<br><b>Status:</b> ${item.Status}<br><b>Days Out:</b> ${item.DaysOut}`);
                 marker.item = item;
                 markers.addLayer(marker);
                 allMarkers.push(marker);
@@ -145,35 +125,10 @@
 
         function getIconUrl(color) {
             switch (color) {
-                case "green":
-                    return "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png";
-                case "purple":
-                    return "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-violet.png";
-                case "red":
-                default:
-                    return "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png";
-            }
-        }
-
-        function createPopupContent(item) {
-            return `
-                <table class="popup-table">
-                    <tr><th>Company</th><td>${String(item["Company"])}</td></tr>
-                    <tr><th>Trailer #</th><td>${String(item["Trailer"])}</td></tr>
-                    <tr><th>Job #</th><td>${String(item["Job"])}</td></tr>
-                    <tr><th>Shipment #</th><td>${String(item["Shipment"])}</td></tr>
-                    <tr><th># Days Out</th><td>${String(item["DaysOut"])}</td></tr>
-                    <tr><th>Uprights Out</th><td>${String(item["UprightsOut"])}</td></tr>
-                    <tr><th>Status</th><td>${String(item["Status"])}</td></tr>
-                </table>
-            `;
-        }
-
-        function closePopup(btn) {
-            var popup = btn.closest('.leaflet-popup-content');
-            if (popup) {
-                var map = window.map; // assuming your map variable is global
-                map.closePopup();
+                case "green": return "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png";
+                case "purple": return "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-violet.png";
+                case "gold": return "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png";
+                default: return "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png";
             }
         }
 
@@ -187,223 +142,116 @@
             allMarkers.forEach(function(marker) {
                 var item = marker.item;
                 if (
-                    (trailerFilter === "" || String(item["Trailer"]).toLowerCase().trim() === trailerFilter) &&
-                    (jobFilter === "" || String(item["Job"]).toLowerCase().trim() === jobFilter) &&
-                    (companyFilter === "" || String(item["Company"]).toLowerCase().includes(companyFilter)) &&
+                    (trailerFilter === "" || String(item.Trailer).toLowerCase().includes(trailerFilter)) &&
+                    (jobFilter === "" || String(item.Job).toLowerCase().includes(jobFilter)) &&
+                    (companyFilter === "" || String(item.Company).toLowerCase().includes(companyFilter)) &&
                     (colorFilter === "" || item.statusTags.includes(colorFilter))
                 ) {
                     markers.addLayer(marker);
                 }
             });
-        }     
-        
-        function findNearbyEmptyTrailersAlongRoute(routeLine, radiusMiles = 150) {
-            const radiusFeet = radiusMiles * 5280;
-            const routePoints = routeLine.getLatLngs(); // array of lat/lngs along the route
-
-            const HQ_LAT = 34.711147;
-            const HQ_LNG = -92.193983;
-            const HQ_TOLERANCE = 0.0001; // Small tolerance for float comparison
-
-            const nearby = allMarkers.filter(marker => {
-                const item = marker.item;
-                if (item.Status!== "Empty") return false;
-
-                const trailerLat = parseFloat(item.Latitude);
-                const trailerLng = parseFloat(item.Longitude);
-
-                // Exclude trailers at HQ
-                if (
-                    Math.abs(trailerLat - HQ_LAT) < HQ_TOLERANCE &&
-                    Math.abs(trailerLng - HQ_LNG) < HQ_TOLERANCE
-                ) {
-                    return false;
-                }
-
-                if (isNaN(trailerLat) || isNaN(trailerLng)) {
-                    console.warn(`Invalid coordinates for trailer ${item.Trailer}: (${item.Latitude}, ${item.Longitude})`);
-                    return false;
-                }
-
-                const trailerLatLng = L.latLng(trailerLat, trailerLng);
-
-                return routePoints.some(routePoint => {
-                    const distFeet = map.distance(routePoint, trailerLatLng) * 3.28084;
-                    return distFeet <= radiusFeet;
-                });
-            });
-
-            console.log(`Nearby empty trailers found along route (excluding HQ): ${nearby.length}`);
-            return nearby;
         }
-        
-        var routingControl = null;
 
-        function planRoute() {
-            const input = prompt("Enter driver's coordinates as 'latitude, longitude':");
+        async function planRoute() {
+            const input = prompt("Enter the driver's starting address (e.g., '123 Main St, Houston, TX'):");
             if (!input) return;
 
-            const [latStr, lngStr] = input.split(',').map(s => s.trim());
-            const lat = parseFloat(latStr);
-            let lng = parseFloat(lngStr);
-
-            if (isNaN(lat) || isNaN(lng)) {
-                alert("Invalid coordinates. Please enter in the format: latitude, longitude");
-                return;
-            }
-
-            if (lng > 0) {
-                const confirmFlip = confirm("Longitude appears to be positive. Should I flip it to negative (U.S.-based)?");
-                if (confirmFlip) {
-                    lng = -lng;
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}`);
+                const data = await response.json();
+                if (!data.length) {
+                    alert("Address not found. Please try again.");
+                    return;
                 }
-            }       
 
-            const start = L.latLng(lat, lng);
-            const end = L.latLng(34.711147, -92.193983); // Little Rock
+                const lat = parseFloat(data[0].lat);
+                const lng = parseFloat(data[0].lon);
+                const start = L.latLng(lat, lng);
+                const end = L.latLng(34.711147, -92.193983); // HQ
 
-            if (routingControl) {
-                map.removeControl(routingControl);
-                routingControl = null;
-            }
-            routingControl = L.Routing.control({
-                waypoints: [start, end],
-                routeWhileDragging: true,
-                addWaypoints: false,
-                formatter: new L.Routing.Formatter({ language: 'en', units: 'imperial' }),
-                createMarker: function(i, wp) {
-                    return L.marker(wp.latLng, { draggable: false });
+                if (routingControl) {
+                    map.removeControl(routingControl);
+                    routingControl = null;
                 }
-            }).addTo(map);
 
-            
-            let routeCheckCount = 0;
-            const maxRouteChecks = 3;
+                routingControl = L.Routing.control({
+                    waypoints: [start, end],
+                    routeWhileDragging: true,
+                    addWaypoints: false,
+                    formatter: new L.Routing.Formatter({ language: 'en', units: 'imperial' }),
+                    createMarker: function(i, wp) {
+                        return L.marker(wp.latLng, { draggable: false });
+                    }
+                }).addTo(map);
 
-            
-        routingControl.on('routesfound', function(e) {
-            if (routeCheckCount >= maxRouteChecks) {
-                console.log("Route check limit reached.");
-                return;
-            }
+                routingControl.on('routesfound', function(e) {
+                    const trailersAlongRoute = findNearbyEmptyTrailersAlongRoute(lat, lng, 200);
+                    highlightedMarkers.forEach(m => map.removeLayer(m));
+                    highlightedMarkers = [];
 
-            routeCheckCount++;
+                    trailersAlongRoute.forEach(marker => {
+                        marker.setIcon(L.icon({
+                            iconUrl: getIconUrl("gold"),
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+                            shadowSize: [41, 41]
+                        }));
+                        marker.item.statusTags.push("gold");
+                        marker.addTo(map);
+                        highlightedMarkers.push(marker);
+                    });
 
-            const routeLine = L.polyline(e.routes[0].coordinates.map(c => L.latLng(c.lat, c.lng)));
-            const trailersAlongRoute = findNearbyEmptyTrailersAlongRoute(routeLine);
-
-            console.log("Trailers along route:", trailersAlongRoute);
-
-            // Highlight matched trailers
-            highlightedMarkers.forEach(m => map.removeLayer(m)); // Remove old highlights
-            highlightedMarkers = [];
-
-            trailersAlongRoute.forEach(marker => {
-                const highlightIcon = L.icon({
-                    iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png",
-                    iconSize: [25, 41],
-                    iconAnchor: [12, 41],
-                    popupAnchor: [1, -34],
-                    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-                    shadowSize: [41, 41]
+                    const trailerWaypoints = trailersAlongRoute.map(m => m.getLatLng());
+                    routingControl.setWaypoints([start, ...trailerWaypoints, end]);
                 });
 
-                marker.setIcon(highlightIcon);
-                marker.addTo(map);
-                // Add gold status tag for filtering
-                if (!marker.item.statusTags.includes("gold")) {
-                    marker.item.statusTags.push("gold");
-                }
-                highlightedMarkers.push(marker);
-            });
+            } catch (error) {
+                console.error("Geocoding error:", error);
+                alert("There was an error processing the address.");
+            }
+        }
 
-            // Exclude HQ trailers from waypoints (redundant, but extra safe)
+        function findNearbyEmptyTrailersAlongRoute(startLat, startLng, radiusMiles = 200) {
             const HQ_LAT = 34.711147;
             const HQ_LNG = -92.193983;
             const HQ_TOLERANCE = 0.0001;
+            const radiusFeet = radiusMiles * 5280;
 
-            const trailerWaypoints = trailersAlongRoute
-                .filter(m => {
-                    const lat = m.getLatLng().lat;
-                    const lng = m.getLatLng().lng;
-                    return !(Math.abs(lat - HQ_LAT) < HQ_TOLERANCE && Math.abs(lng - HQ_LNG) < HQ_TOLERANCE);
-                })
-                .map(m => m.getLatLng());
+            const routeWaypoints = [
+                [startLat, startLng],
+                [29.7604, -95.3698],
+                [30.2672, -97.7431],
+                [32.7767, -96.7970],
+                [HQ_LAT, HQ_LNG]
+            ];
 
-            const fullWaypoints = [e.routes[0].waypoints[0].latLng, ...trailerWaypoints, e.routes[0].waypoints.slice(-1)[0].latLng];
+            return allMarkers.filter(marker => {
+                const item = marker.item;
+                if (item.Status.toUpperCase() !== "EMPTY") return false;
 
-            routingControl.setWaypoints(fullWaypoints);
-        });
+                const lat = parseFloat(item.Latitude);
+                const lng = parseFloat(item.Longitude);
+                if (Math.abs(lat - HQ_LAT) < HQ_TOLERANCE && Math.abs(lng - HQ_LNG) < HQ_TOLERANCE) return false;
 
-        }
-            L.Control.PlanRoute = L.Control.extend({
-                onAdd: function(map) {
-                    var btn = L.DomUtil.create('button', '');
-                    btn.innerHTML = 'Plan Route';
-                    btn.style.backgroundColor = 'white';
-                    btn.style.padding = '5px';
-                    btn.style.cursor = 'pointer';
-                    btn.style.border = '2px solid #666';
-                    btn.style.borderRadius = '4px';
-                    btn.style.boxShadow = '0 1px 5px rgba(0,0,0,0.65)';
-
-            L.DomEvent.on(btn, 'click', function(e) {
-                L.DomEvent.stopPropagation(e);
-                L.DomEvent.preventDefault(e);
-                planRoute();
+                const trailerLatLng = L.latLng(lat, lng);
+                return routeWaypoints.some(([wpLat, wpLng]) => {
+                    const wpLatLng = L.latLng(wpLat, wpLng);
+                    const distFeet = map.distance(trailerLatLng, wpLatLng) * 3.28084;
+                    return distFeet <= radiusFeet;
+                });
             });
-
-            return btn;
-        },
-
-        onRemove: function(map) {
-            // Nothing to clean up
         }
-    });
 
-    L.control.planRoute = function(opts) {
-        return new L.Control.PlanRoute(opts);
-    };
-
-    L.control.planRoute({ position: 'topright' }).addTo(map);
-
-    L.Control.ResetRoute = L.Control.extend({
-    onAdd: function(map) {
-        var btn = L.DomUtil.create('button', '');
-        btn.id = 'resetRouteBtn';
-        btn.innerHTML = 'Reset Route';
-        btn.style.backgroundColor = 'white';
-        btn.style.padding = '5px';
-        btn.style.cursor = 'pointer';
-        btn.style.border = '2px solid #666';
-        btn.style.borderRadius = '4px';
-        btn.style.boxShadow = '0 1px 5px rgba(0,0,0,0.65)';
-        btn.style.margin = '10px';
-
-        L.DomEvent.on(btn, 'click', function(e) {
-            L.DomEvent.stopPropagation(e);
-            L.DomEvent.preventDefault(e);
+        function resetRoute() {
             if (routingControl) {
                 map.removeControl(routingControl);
                 routingControl = null;
             }
-            if (highlightedMarkers && highlightedMarkers.length) {
-                highlightedMarkers.forEach(m => map.removeLayer(m));
-                highlightedMarkers = [];
-            }
-        });
-
-        return btn;
-    },
-    onRemove: function(map) {
-    }
-});
-
-L.control.resetRoute = function(opts) {
-    return new L.Control.ResetRoute(opts);
-};
-L.control.resetRoute({ position: 'topright' }).addTo(map);
-
-</script>
+            highlightedMarkers.forEach(m => map.removeLayer(m));
+            highlightedMarkers = [];
+        }
+    </script>
 </body>
 </html>
