@@ -207,7 +207,7 @@
 
             const nearby = allMarkers.filter(marker => {
                 const item = marker.item;
-                if (item.Status !== "Empty") return false;
+                if (item.Status: !== "Empty") return false;
 
                 const trailerLat = parseFloat(item.Latitude);
                 const trailerLng = parseFloat(item.Longitude);
@@ -278,7 +278,7 @@
 
             
             let routeCheckCount = 0;
-            const maxRouteChecks = 2;
+            const maxRouteChecks = 3;
 
             
         routingControl.on('routesfound', function(e) {
