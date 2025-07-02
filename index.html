@@ -13,18 +13,20 @@
         body { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: larger; }
         .control-panel { margin: 10px; }
         ul { list-style-type: none; padding: 0; margin: 0; }
+        .leaflet-routing-container { display: none !important; }
     </style>
 </head>
 <body>
     <h2>Trailer Locator and Return Trip Planner</h2>
     <p>Upload the most recent <a href="https://interstatehighwaysigncorp.sharepoint.com/sites/Shipping/_layouts/download.aspx?SourceUrl=https://interstatehighwaysigncorp.sharepoint.com/sites/Shipping/Documents/Trailer%20List/Trailer%20List.xlsx">Trailer List</a> file to view the information on the map.</p>
     <p>Return trip planning has been improved and now only requires the City and State (ex: Denver, CO) information to determine where to route a driver to collect empty trailers.</p>
-    <p><b>Color Coding:</b></p>
+    <p><b>Color Coding:</b>
     <ul>
         <li>🟥 Red: <b>Not empty</b> or not loaded (if at HQ)</li>
         <li>🟩 Green: <b>Empty</b> Trailer</li>
         <li>🟪 Purple: Trailer out 100 days or longer</li>
     </ul>
+    </p>
     <br>
     <div class="control-panel">
         <input type="file" id="fileInput" />
@@ -194,7 +196,17 @@
                 }).addTo(map);
 
                 routingControl.on('routesfound', function(e) {
-                    const trailersAlongRoute = findNearbyEmptyTrailersAlongRoute(lat, lng, 200);
+                    let trailersAlongRoute = findNearbyEmptyTrailersAlongRoute(lat, lng, 200);
+                    
+                    trailersAlongRoute = trailersAlongRoute.sort((a, b) => {
+                        const distA = map.distance(a.getLatLng(), start) + map.distance(a.getLatLng(), end);
+                        const distB = map.distance(b.getLatLng(), start) + map.distance(b.getLatLng(), end);
+                        return distA - distB;
+                    });
+
+                    // Limit to the 2 closest trailers (change this number as needed)
+                    trailersAlongRoute = trailersAlongRoute.slice(0, 4);
+
                     highlightedMarkers.forEach(m => map.removeLayer(m));
                     highlightedMarkers = [];
 
