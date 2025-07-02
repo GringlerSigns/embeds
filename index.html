@@ -196,7 +196,7 @@
                 }).addTo(map);
 
                 routingControl.on('routesfound', function(e) {
-                    let trailersAlongRoute = findNearbyEmptyTrailersAlongRoute(lat, lng, 200);
+                    let trailersAlongRoute = findNearbyEmptyTrailersAlongRoute(lat, lng, 150);
                     
                     trailersAlongRoute = trailersAlongRoute.sort((a, b) => {
                         const distA = map.distance(a.getLatLng(), start) + map.distance(a.getLatLng(), end);
