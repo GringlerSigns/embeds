@@ -10,14 +10,22 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
     <style>
         #map { height: 600px; }
-        body { font-family: Arial, sans-serif; }
+        body { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: larger; }
         .control-panel { margin: 10px; }
+        ul { list-style-type: none; padding: 0; margin: 0; }
     </style>
 </head>
 <body>
     <h2>Trailer Locator and Return Trip Planner</h2>
     <p>Upload the most recent <a href="https://interstatehighwaysigncorp.sharepoint.com/sites/Shipping/_layouts/download.aspx?SourceUrl=https://interstatehighwaysigncorp.sharepoint.com/sites/Shipping/Documents/Trailer%20List/Trailer%20List.xlsx">Trailer List</a> file to view the information on the map.</p>
     <p>Return trip planning has been improved and now only requires the City and State (ex: Denver, CO) information to determine where to route a driver to collect empty trailers.</p>
+    <p><b>Color Coding:</b></p>
+    <ul>
+        <li>🟥 Red: <b>Not empty</b> or not loaded (if at HQ)</li>
+        <li>🟩 Green: <b>Empty</b> Trailer</li>
+        <li>🟪 Purple: Trailer out 100 days or longer</li>
+    </ul>
+    <br>
     <div class="control-panel">
         <input type="file" id="fileInput" />
         <button onclick="planRoute()">Plan Route</button>
